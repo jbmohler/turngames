@@ -15,10 +15,11 @@ class ClientGame:
 
 async def chat_server(session, game, server):
     if game.is_creator:
-        tail = "/ws/start-game"
+        # TODO abstract game choice
+        tail = "/ws/start-game/scum"
     else:
         while True:
-            await asyncio.sleep(2)
+            await asyncio.sleep(.5)
             content = await session.get(f"{server}/games/list")
             games = json.loads(await content.text())
             if len(games["games"]) > 0:
@@ -29,19 +30,28 @@ async def chat_server(session, game, server):
 
     async with session.ws_connect(f"{server}{tail}") as ws:
         async for msg in ws:
-            try:
-                data = json.loads(msg.data)
-            except Exception as e:
-                print(f"error: {str(e)}\nparsing :  {msg.data[:20]}")
-
             if msg.type == aiohttp.WSMsgType.TEXT:
+                try:
+                    data = json.loads(msg.data)
+                except Exception as e:
+                    print(f"error: {str(e)}\nparsing :  {msg.data[:20]}")
+                    continue
 
                 if data["type"] == "hello":
                     content = {"type": "identify", "player": {"name": game.get_name()}}
                     await ws.send_str(json.dumps(content))
 
                 if data["type"] == "state_update":
+                    state = data["state"]
+                    if game.is_creator and state["state"][0] == "startup":
+                        # TODO abstract start state
+                        if len(state["players"]) == 3:
+                            content = {"type": "player_lock"}
+                            await ws.send_str(json.dumps(content))
                     print("Received update")
+
+                if data["type"] == "deal":
+                    print(data["cards"])
 
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break
