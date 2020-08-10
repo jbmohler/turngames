@@ -5,9 +5,10 @@ import aiohttp
 
 
 class ClientGame:
-    def __init__(self, name, is_creator=False):
+    def __init__(self, name, is_creator=False, myclient=None):
         self._name = name
         self.is_creator = is_creator
+        self.myclient = myclient
 
     def get_name(self):
         return self._name
@@ -51,7 +52,15 @@ async def chat_server(session, game, server):
                     print("Received update")
 
                 if data["type"] == "deal":
-                    print(data["cards"])
+                    await game.myclient.accept_deal(data)
+
+                if data["type"] == "play":
+                    response = await game.myclient.make_play(data)
+
+                    content = {"type": "play_response"}
+                    content.update(response)
+
+                    await ws.send_str(json.dumps(content))
 
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break
@@ -84,7 +93,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    game = ClientGame(args.player, args.host)
+    import scumclient
+
+    game = ClientGame(args.player, args.host, scumclient.ScumClient())
     asyncio.get_event_loop().run_until_complete(start_game(server, game))
 
     input("enter to close")

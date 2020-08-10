@@ -8,31 +8,45 @@ CARDS.append("ROOK")
 
 class Server:
     async def update_state(self, game):
-        global CARDS
-
         if game.state[0] == "deal":
-            print(f"dealing to {len(game.players)} players")
-
-            game.dealer = dealer.Dealer()
-
-            cardsper = len(CARDS) // len(game.players)
-
-            remaining = len(CARDS) - cardsper * len(game.players)
-
-            sequence = [cardsper+1]*remaining + [cardsper] * (len(game.players) - remaining)
-            todeal = {p._id: s for p, s in zip(game.players, sequence)}
-
-            # TODO:  this will be async with an await
-            deals = await game.dealer.deal_cards(todeal, CARDS)
-
-            await game.distribute_deals(deals)
-
-        if game.state[0] == "bid":
+            await self.run_state_deal(game)
+        elif game.state[0] == "bid":
             # no bidding in scum, move along
 
             await game.finalize_bid()
+        elif game.state[0] == "play":
+            await self.run_state_play(game)
 
-        if game.state[0] == "play":
-            # something about player order
+    async def run_state_deal(self, game):
+        global CARDS
 
-            pass
+        print(f"dealing to {len(game.players)} players")
+
+        game.dealer = dealer.Dealer()
+
+        cardsper = len(CARDS) // len(game.players)
+
+        remaining = len(CARDS) - cardsper * len(game.players)
+
+        sequence = [cardsper+1]*remaining + [cardsper] * (len(game.players) - remaining)
+        todeal = {p.id: s for p, s in zip(game.players, sequence)}
+
+        # TODO:  this will be async with an await
+        deals = await game.dealer.deal_cards(todeal, CARDS)
+
+        await game.distribute_deals(deals)
+
+    async def run_state_play(self, game):
+        # something about player order
+
+        if game.live_trick == None:
+            game.create_live_trick()
+            player_id = game.players[0].id
+        else:
+            trick = game.live_trick
+            player_id = game.get_next_player(trick.played[-1].player_id)
+
+        await game.prompt_player(player_id)
+
+    async def check_legal_play(self, game, play):
+        pass

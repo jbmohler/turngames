@@ -19,12 +19,32 @@ def get_api_health():
 
 class GamePlayer:
     def __init__(self, name):
-        self._id = uuid.uuid1().hex
+        self.id = uuid.uuid1().hex
         self.name = name
-
 
 class GameTurn:
     pass
+
+
+class GameTrick:
+    # TODO: consider what separates a trick based game from any other kind of
+    # game
+
+    class GameTrickPlay:
+        def __init__(self, player_id, cards):
+            self.player_id = player_id
+            self.cards = cards
+
+        def as_dict(self):
+            return {
+                    'player_id': self.player_id,
+                    'cards': self.cards}
+
+    def __init__(self):
+        self.played = []
+
+    def get_state(self):
+        return [gtp.as_dict() for gtp in self.played]
 
 
 class GameStruct:
@@ -32,7 +52,6 @@ class GameStruct:
         self.game_id = str(uuid.uuid1())
         self.players = []
         self.observers = []
-        self.history = []
 
         # import the server
         # TODO:  make this dynamic & elegant
@@ -40,6 +59,9 @@ class GameStruct:
             import scumserver as module
 
         self.srvplug = module.Server()
+
+        self.trick_history = []
+        self.live_trick = None
 
         self.state = ("startup", 0)
         self.listeners = []
@@ -68,7 +90,7 @@ class GameStruct:
         self.move_state("deal")
 
     async def distribute_deals(self, deals):
-        pmap = {p._id: p for p in self.players}
+        pmap = {p.id: p for p in self.players}
         for player, hand in deals.items():
             obj = {"type": "deal", "cards": hand}
             await pmap[player].websocket.send_json(obj)
@@ -79,6 +101,9 @@ class GameStruct:
         # TODO implement a game with a bid to figure this out
 
         self.move_state("play")
+
+    def create_live_trick(self):
+        self.live_trick = GameTrick()
 
     def get_state(self):
         if self.state[0] == "startup":
@@ -113,6 +138,12 @@ class GameStruct:
                 for ws in self.listeners:
                     await ws.send_json({"type": "state_update", "state": current_state})
                 last_sent = self.state
+
+    async def prompt_player(self, player_id):
+        pmap = {p.id: p for p in self.players}
+
+        obj = {"type": "play", "trick": self.live_trick.get_state()}
+        await pmap[player_id].websocket.send_json(obj)
 
 
 GAME_LIST = []
