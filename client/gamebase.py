@@ -16,8 +16,7 @@ class ClientGame:
 
 async def chat_server(session, game, server):
     if game.is_creator:
-        # TODO abstract game choice
-        tail = "/ws/start-game/scum"
+        tail = f"/ws/start-game/{game.myclient.GAME_LABEL}"
     else:
         while True:
             await asyncio.sleep(0.5)
@@ -93,6 +92,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # TODO abstract out game choice
     import scumclient
 
     game = ClientGame(args.player, args.host, scumclient.ScumClient())

@@ -6,6 +6,19 @@ DENOMINATIONS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1]
 CARDS = [f"{s[0]}{d}" for s in SUITS for d in DENOMINATIONS]
 CARDS.append("ROOK")
 
+### dupe from client ####
+def card_denomination(c):
+    if c == "ROOK":
+        return 20
+    else:
+        x = int(c[1:])
+        if x == 1:
+            return 15
+        return x
+
+
+############################
+
 
 class Server:
     async def update_state(self, game):
@@ -52,4 +65,31 @@ class Server:
         await game.prompt_player(player_id)
 
     async def check_legal_play(self, game, play):
-        pass
+        print(play.as_dict())
+        if play.is_pass and len(play.cards) > 0:
+            return False
+        if not play.is_pass and len(play.cards) == 0:
+            return False
+
+        current = game.live_trick
+
+        base_denom = 0
+        if len(current.played) == 0:
+            if play.is_pass:
+                return False
+        else:
+            if play.is_pass:
+                return True
+            last = [gtp for gtp in reversed(current.played) if not gtp.is_pass][0]
+
+            base_denom = card_denomination(last.cards[0])
+            multiplicity = len(last.cards)
+
+        denoms = set(card_denomination(c) for c in play.cards)
+        if len(denoms) > 1:
+            return False
+
+        if denoms.pop() <= base_denom:
+            return False
+
+        return True

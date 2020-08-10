@@ -3,6 +3,7 @@ import uuid
 import importlib
 import asyncio
 from fastapi import FastAPI, WebSocket
+import starlette.websockets
 
 app = FastAPI()
 
@@ -32,15 +33,23 @@ class GameTrick:
     # game
 
     class GameTrickPlay:
-        def __init__(self, player_id, cards):
+        def __init__(self, player_id, cards, is_pass):
             self.player_id = player_id
             self.cards = cards
+            self.is_pass = is_pass
 
         def as_dict(self):
-            return {"player_id": self.player_id, "cards": self.cards}
+            return {
+                "player_id": self.player_id,
+                "cards": self.cards,
+                "is_pass": self.is_pass,
+            }
 
     def __init__(self):
         self.played = []
+
+    def add(self, gtp):
+        self.played.append(gtp)
 
     def get_state(self):
         return [gtp.as_dict() for gtp in self.played]
@@ -79,6 +88,8 @@ class GameStruct:
         self.players.append(p)
         self.listeners.append(websocket)
         self.bump_state()
+
+        return p
 
     def add_observer(self, websocket, struct):
         self.observers.append(struct)
@@ -138,11 +149,32 @@ class GameStruct:
                     await ws.send_json({"type": "state_update", "state": current_state})
                 last_sent = self.state
 
-    async def prompt_player(self, player_id):
+    async def prompt_player(self, player_id, retry_msg=None):
         pmap = {p.id: p for p in self.players}
 
         obj = {"type": "play", "trick": self.live_trick.get_state()}
+        if retry_msg:
+            obj["retry_msg"] = retry_msg
         await pmap[player_id].websocket.send_json(obj)
+
+    async def play_response(self, player, data):
+        candidate = GameTrick.GameTrickPlay(
+            player.id, data.get("cards", []), data.get("is_pass", False)
+        )
+
+        if await self.srvplug.check_legal_play(self, candidate):
+            self.live_trick.add(candidate)
+            self.bump_state()
+            await self.srvplug.run_state_play(self)
+        else:
+            await self.prompt_player(player.id, retry_msg="illegal play")
+
+    def get_next_player(self, player_id):
+        offset = self.players[1:] + [self.players[0]]
+        for p1, p2 in zip(self.players, offset):
+            if p1.id == player_id:
+                return p2.id
+        raise RuntimeError("player not found in get_next_player")
 
 
 GAME_LIST = []
@@ -189,19 +221,27 @@ async def websocket_join_game(game_id: str, websocket: WebSocket):
 
 async def handle_game_ws(websocket: WebSocket, gs: GameStruct, is_creator: bool):
     await websocket.send_json({"type": "hello"})
+
+    player = None
     while True:
         try:
             data = await websocket.receive_json()
+        except starlette.websockets.WebSocketDisconnect:
+            print(f"player {player.name if player else 'unidentified'} disconnect")
+            break
         except json.JSONDecodeError as e:
             print(f"error parsing content -- {str(e)}")
 
         if data["type"] == "identify" and "player" in data:
-            gs.add_player(websocket, data["player"])
+            player = gs.add_player(websocket, data["player"])
 
         if data["type"] == "identify" and "observer" in data:
             gs.add_observer(websocket, data["observer"])
 
         if data["type"] == "player_lock" and is_creator:
             gs.player_lock()
+
+        if data["type"] == "play_response":
+            await gs.play_response(player, data)
 
         # await websocket.send_text(f"Message text was: {data}")
