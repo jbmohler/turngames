@@ -22,6 +22,7 @@ class GamePlayer:
         self.id = uuid.uuid1().hex
         self.name = name
 
+
 class GameTurn:
     pass
 
@@ -36,9 +37,7 @@ class GameTrick:
             self.cards = cards
 
         def as_dict(self):
-            return {
-                    'player_id': self.player_id,
-                    'cards': self.cards}
+            return {"player_id": self.player_id, "cards": self.cards}
 
     def __init__(self):
         self.played = []
@@ -132,7 +131,7 @@ class GameStruct:
     async def push_state_updates(self):
         last_sent = self.state
         while True:
-            await asyncio.sleep(.15)
+            await asyncio.sleep(0.15)
             if last_sent != self.state:
                 current_state = self.get_state()
                 for ws in self.listeners:

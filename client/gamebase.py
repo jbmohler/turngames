@@ -20,7 +20,7 @@ async def chat_server(session, game, server):
         tail = "/ws/start-game/scum"
     else:
         while True:
-            await asyncio.sleep(.5)
+            await asyncio.sleep(0.5)
             content = await session.get(f"{server}/games/list")
             games = json.loads(await content.text())
             if len(games["games"]) > 0:

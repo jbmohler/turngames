@@ -6,6 +6,7 @@ DENOMINATIONS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1]
 CARDS = [f"{s[0]}{d}" for s in SUITS for d in DENOMINATIONS]
 CARDS.append("ROOK")
 
+
 class Server:
     async def update_state(self, game):
         if game.state[0] == "deal":
@@ -28,7 +29,9 @@ class Server:
 
         remaining = len(CARDS) - cardsper * len(game.players)
 
-        sequence = [cardsper+1]*remaining + [cardsper] * (len(game.players) - remaining)
+        sequence = [cardsper + 1] * remaining + [cardsper] * (
+            len(game.players) - remaining
+        )
         todeal = {p.id: s for p, s in zip(game.players, sequence)}
 
         # TODO:  this will be async with an await

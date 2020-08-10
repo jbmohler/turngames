@@ -1,7 +1,5 @@
-
-
 def card_denomination(c):
-    if c == 'ROOK':
+    if c == "ROOK":
         return 20
     else:
         x = int(c[1:])
@@ -9,8 +7,8 @@ def card_denomination(c):
             return 15
         return x
 
-class ScumClient:
 
+class ScumClient:
     def state_update(self, newstate):
         if newstate.next_player == "me":
             play = self.player.play(game, newstate.trick)
@@ -19,7 +17,7 @@ class ScumClient:
             self.player.review_complete_trick(game, newstate.trick)
 
     async def accept_deal(self, deal):
-        self.cards = deal['cards']
+        self.cards = deal["cards"]
 
         self.cards.sort(key=card_denomination)
         print(self.cards)
@@ -30,4 +28,3 @@ class ScumClient:
         print(prompt)
 
         return {"cards": self.cards[:2]}
-
