@@ -15,6 +15,10 @@ def card_denomination(c):
 class ScumClient:
     GAME_LABEL = "scum"
 
+    def __init__(self):
+        self.cards = None
+        self.cards_played = []
+
     def state_update(self, newstate):
         # TODO is this necessary
         if newstate.next_player == "me":
@@ -39,22 +43,29 @@ class ScumClient:
         if len(trick) > 0:
             last = [gtp for gtp in reversed(trick) if not gtp["is_pass"]][0]
             topcards = last["cards"]
+            high_denom = card_denomination(topcards[0])
 
             # bucket cards (they are sorted)
             for denom, _cards in itertools.groupby(self.cards, key=card_denomination):
                 cards = list(_cards)
-                if denom > card_denomination(topcards[0]) and len(cards) >= len(
-                    topcards
-                ):
+                if denom > high_denom and len(cards) >= len(topcards):
+                    result = {"cards": cards[: len(topcards)]}
                     break
             else:
-                return {"is_pass": True}
-
-            return {"cards": cards[: len(topcards)]}
+                result = {"is_pass": True}
         else:
             # bucket cards (they are sorted)
             for denom, _cards in itertools.groupby(self.cards, key=card_denomination):
                 cards = list(_cards)
                 break
 
-            return {"cards": cards}
+            result = {"cards": cards}
+
+        if not result.get("is_pass", False):
+            # update accounting
+            # TODO -- what if the server returns illegal move? we've taken the
+            # cards out of play ... although how would we even respond to that.
+            self.cards_played += result["cards"]
+            for c in result["cards"]:
+                self.cards.remove(c)
+        return result

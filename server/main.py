@@ -112,6 +112,14 @@ class GameStruct:
 
         self.move_state("play")
 
+    def cards_played(self):
+        for trick in self.trick_history:
+            for gtp in trick.played:
+                if not gtp.cards:
+                    continue
+                for card in gtp.cards:
+                    yield card
+
     def create_live_trick(self):
         self.live_trick = GameTrick()
 
