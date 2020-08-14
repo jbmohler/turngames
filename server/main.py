@@ -113,12 +113,17 @@ class GameStruct:
         self.move_state("play")
 
     def cards_played(self):
-        for trick in self.trick_history:
+        for _, card in self.cards_played_per_player():
+            yield card
+
+    def cards_played_per_player(self):
+        live = [self.live_trick] if self.live_trick else []
+        for trick in self.trick_history + live:
             for gtp in trick.played:
                 if not gtp.cards:
                     continue
                 for card in gtp.cards:
-                    yield card
+                    yield gtp.player_id, card
 
     def create_live_trick(self):
         self.live_trick = GameTrick()
@@ -177,12 +182,18 @@ class GameStruct:
         else:
             await self.prompt_player(player.id, retry_msg="illegal play")
 
-    def get_next_player(self, player_id):
+    def player_queue(self, after_player_id, include=False):
+        if include:
+            yield after_player_id
         offset = self.players[1:] + [self.players[0]]
-        for p1, p2 in zip(self.players, offset):
-            if p1.id == player_id:
-                return p2.id
-        raise RuntimeError("player not found in get_next_player")
+        # we count on the outer code to have a terminator on this enumeration
+        while True:
+            for p1, p2 in zip(self.players, offset):
+                if p1.id == after_player_id:
+                    yield p2.id
+                    after_player_id = p2.id
+            else:
+                raise RuntimeError("player not found in get_next_player")
 
 
 GAME_LIST = []

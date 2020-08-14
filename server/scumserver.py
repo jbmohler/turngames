@@ -1,3 +1,4 @@
+import collections
 import dealer
 
 SUITS = ["Red", "Yellow", "Green", "Black"]
@@ -33,6 +34,9 @@ def print_trick(game, current):
 
 
 class Server:
+    def __init__(self):
+        self.card_counts = {}
+
     async def update_state(self, game):
         if game.state[0] == "deal":
             await self.run_state_deal(game)
@@ -58,6 +62,7 @@ class Server:
             len(game.players) - remaining
         )
         todeal = {p.id: s for p, s in zip(game.players, sequence)}
+        self.card_counts = todeal.copy()
 
         # TODO:  this will be async with an await
         deals = await game.dealer.deal_cards(todeal, CARDS)
@@ -67,26 +72,49 @@ class Server:
     async def run_state_play(self, game):
         # something about player order
 
-        current = game.live_trick
+        playcount = collections.Counter(player_id for player_id, _ in game.cards_played_per_player())
+        remaining = {pid: dealt - playcount.get(pid, 0) for pid, dealt in self.card_counts.items()}
+
+        default_player = None
+
+        if game.live_trick:
+            current = game.live_trick
+
+            first = current.played[0].player_id
+            last = current.played[-1].player_id
+
+            for next_player in game.player_queue(last):
+                if next_player == first:
+                    default_player = [gtp for gtp in reversed(current.played) if not gtp.is_pass][0].player_id
+                    game.trick_history.append(current)
+                    print_trick(game, current)
+                    game.live_trick = None
+                    break
+                elif remaining[next_player] > 0:
+                    player_id = next_player
+                    break
+        else:
+            default_player = game.players[0].id
 
         if game.live_trick == None:
-            game.create_live_trick()
-            player_id = game.players[0].id
-        elif len(current.played) == len(game.players):
-            last = [gtp for gtp in reversed(current.played) if not gtp.is_pass][0]
-            game.trick_history.append(current)
-            print_trick(game, current)
+            for player in game.players:
+                if remaining[player.id] < 3:
+                    print(f"{player.name}:  {remaining[player.id]}")
 
-            game.create_live_trick()
-            player_id = last.player_id
-        else:
-            trick = game.live_trick
-            player_id = game.get_next_player(trick.played[-1].player_id)
+            for pid in game.player_queue(default_player, include=True):
+                if remaining[pid] > 0:
+                    player_id = pid
+                    break
 
-        await game.prompt_player(player_id)
+            if player_id:
+                game.create_live_trick()
+            else:
+                game.move_state("round_complete")
+
+        if player_id:
+            await game.prompt_player(player_id)
 
     async def check_legal_play(self, game, play):
-        print(play.as_dict())
         if play.is_pass and len(play.cards) > 0:
             return False
         if not play.is_pass and len(play.cards) == 0:
