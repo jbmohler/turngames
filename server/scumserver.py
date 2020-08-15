@@ -121,8 +121,8 @@ class Server:
             await game.prompt_player(player_id)
         else:
             self.summarize_trickset(game)
-
             game.move_state("review")
+            await game.announce_trickset_complete()
 
     def summarize_trickset(self, game):
         if len(game.players) == 2:

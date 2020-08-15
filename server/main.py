@@ -105,11 +105,14 @@ class GameStruct:
         self.move_state("deal")
 
     def clear_trickset(self):
+        print("clearing trickset")
         self.trick_history = []
         self.live_trick = None
 
     def new_trickset(self):
         self.clear_trickset()
+
+        # TODO:  re-order players by prior trickset
 
         self.move_state("deal")
 
@@ -120,6 +123,12 @@ class GameStruct:
             await pmap[player].websocket.send_json(obj)
 
         self.move_state("bid")
+
+    async def announce_trickset_complete(self):
+        state = self.get_state()
+        for player in self.players:
+            obj = {"type": "review_trickset", "state": state}
+            await player.websocket.send_json(obj)
 
     async def finalize_bid(self):
         # TODO implement a game with a bid to figure this out

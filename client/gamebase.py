@@ -49,13 +49,6 @@ async def chat_server(session, game, server):
                             content = {"type": "player_lock"}
                             await ws.send_str(json.dumps(content))
 
-                    if game.is_creator and state["state"][0] == "review":
-                        print("going to play again")
-                        await game.myclient.show_summary(data["state"])
-                        await asyncio.sleep(2)
-                        content = {"type": "new_trickset"}
-                        await ws.send_str(json.dumps(content))
-
                 if data["type"] == "deal":
                     await game.myclient.accept_deal(data)
 
@@ -66,6 +59,14 @@ async def chat_server(session, game, server):
                     content.update(response)
 
                     await ws.send_str(json.dumps(content))
+
+                if data["type"] == "review_trickset":
+                    await game.myclient.show_summary(data["state"])
+                    if game.is_creator:
+                        print("going to play again")
+                        await asyncio.sleep(2)
+                        content = {"type": "new_trickset"}
+                        await ws.send_str(json.dumps(content))
 
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break
