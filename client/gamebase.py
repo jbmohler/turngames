@@ -96,13 +96,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host", default=False, action="store_true", help="is game host"
     )
+    parser.add_argument("--game", choices=("scum", "udr"), help="game choice")
 
     args = parser.parse_args()
 
-    # TODO abstract out game choice
-    import scumclient
+    # TODO: would be ideal if the host specified the game and the peer clients
+    # would inherit that choice
+    if args.game == "scum":
+        import scumclient
 
-    game = ClientGame(args.player, args.host, scumclient.ScumClient())
+        gclient = scumclient.ScumClient()
+    elif args.game == "scum":
+        import udrclient
+
+        gclient = udrclient.UpDownRivClient()
+    else:
+        raise RuntimeError("unknown game choice")
+
+    game = ClientGame(args.player, args.host, gclient)
     asyncio.get_event_loop().run_until_complete(start_game(server, game))
 
     input("enter to close")

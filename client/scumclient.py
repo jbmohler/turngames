@@ -38,7 +38,7 @@ class ScumClient:
         pmap = {p["id"]: p for p in tset["players"]}
 
         for pid, rank in tset["summary"]:
-            print(f"{pmap[pid]}: {rank}")
+            print(f"{pmap[pid]['name']}: {rank}")
 
     async def make_play(self, prompt):
         # this is essentially the greedy algorithm
