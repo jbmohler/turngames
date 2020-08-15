@@ -23,6 +23,10 @@ class GamePlayer:
         self.id = uuid.uuid1().hex
         self.name = name
 
+    def as_dict(self):
+        return {
+                "id": self.id,
+                "name": self.name}
 
 class GameTurn:
     pass
@@ -68,8 +72,9 @@ class GameStruct:
 
         self.srvplug = module.Server()
 
-        self.trick_history = []
-        self.live_trick = None
+        self.trickset_summary = []
+
+        self.clear_trickset()
 
         self.state = ("startup", 0)
         self.listeners = []
@@ -97,6 +102,15 @@ class GameStruct:
         self.bump_state()
 
     def player_lock(self):
+        self.move_state("deal")
+
+    def clear_trickset(self):
+        self.trick_history = []
+        self.live_trick = None
+
+    def new_trickset(self):
+        self.clear_trickset()
+
         self.move_state("deal")
 
     async def distribute_deals(self, deals):
@@ -128,6 +142,9 @@ class GameStruct:
     def create_live_trick(self):
         self.live_trick = GameTrick()
 
+    def append_trickset_summary(self, data):
+        self.trickset_summary.append(data)
+
     def get_state(self):
         if self.state[0] == "startup":
             state = {}
@@ -148,6 +165,12 @@ class GameStruct:
             state = {}
             state["state"] = self.state
             state["players"] = [x.name for x in self.players]
+            return state
+        elif self.state[0] == "review":
+            state = {}
+            state["state"] = self.state
+            state["players"] = [x.as_dict() for x in self.players]
+            state["summary"] = self.trickset_summary[-1]
             return state
         else:
             raise NotImplementedError(f"no state implementation for {self.state[0]}")
@@ -192,8 +215,9 @@ class GameStruct:
                 if p1.id == after_player_id:
                     yield p2.id
                     after_player_id = p2.id
+                    break
             else:
-                raise RuntimeError("player not found in get_next_player")
+                raise RuntimeError("player not found in player_queue")
 
 
 GAME_LIST = []
@@ -259,6 +283,9 @@ async def handle_game_ws(websocket: WebSocket, gs: GameStruct, is_creator: bool)
 
         if data["type"] == "player_lock" and is_creator:
             gs.player_lock()
+
+        if data["type"] == "new_trickset" and is_creator:
+            gs.new_trickset()
 
         if data["type"] == "play_response":
             await gs.play_response(player, data)

@@ -48,7 +48,13 @@ async def chat_server(session, game, server):
                         if len(state["players"]) == 3:
                             content = {"type": "player_lock"}
                             await ws.send_str(json.dumps(content))
-                    print("Received update")
+
+                    if game.is_creator and state["state"][0] == "review":
+                        print("going to play again")
+                        await game.myclient.show_summary(data["state"])
+                        await asyncio.sleep(2)
+                        content = {"type": "new_trickset"}
+                        await ws.send_str(json.dumps(content))
 
                 if data["type"] == "deal":
                     await game.myclient.accept_deal(data)

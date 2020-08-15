@@ -29,15 +29,22 @@ class ScumClient:
 
     async def accept_deal(self, deal):
         self.cards = deal["cards"]
+        self.cards_played = []
 
         self.cards.sort(key=card_denomination)
         print(self.cards)
+
+    async def show_summary(self, tset):
+        pmap = {p["id"]: p for p in tset["players"]}
+
+        for pid, rank in tset["summary"]:
+            print(f"{pmap[pid]}: {rank}")
 
     async def make_play(self, prompt):
         # this is essentially the greedy algorithm
 
         print(prompt)
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(.25)
 
         trick = prompt["trick"]
         if len(trick) > 0:

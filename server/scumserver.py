@@ -46,11 +46,16 @@ class Server:
             await game.finalize_bid()
         elif game.state[0] == "play":
             await self.run_state_play(game)
+        elif game.state[0] == "review":
+            pass
 
     async def run_state_deal(self, game):
         global CARDS
 
         print(f"dealing to {len(game.players)} players")
+
+        if not 2 <= len(game.players) <= 8:
+            raise RuntimeError("scum requires between 2 & 8 players")
 
         game.dealer = dealer.Dealer()
 
@@ -76,6 +81,7 @@ class Server:
         remaining = {pid: dealt - playcount.get(pid, 0) for pid, dealt in self.card_counts.items()}
 
         default_player = None
+        player_id = None
 
         if game.live_trick:
             current = game.live_trick
@@ -101,18 +107,47 @@ class Server:
                 if remaining[player.id] < 3:
                     print(f"{player.name}:  {remaining[player.id]}")
 
-            for pid in game.player_queue(default_player, include=True):
-                if remaining[pid] > 0:
-                    player_id = pid
-                    break
+            rplayers = [p for p in game.players if remaining[p.id] > 0]
 
-            if player_id:
+            if len(rplayers):
+                for pid in game.player_queue(default_player, include=True):
+                    if remaining[pid] > 0:
+                        player_id = pid
+                        break
+
                 game.create_live_trick()
-            else:
-                game.move_state("round_complete")
 
         if player_id:
             await game.prompt_player(player_id)
+        else:
+            self.summarize_trickset(game)
+
+            game.move_state("review")
+
+    def summarize_trickset(self, game):
+        if len(game.players) == 2:
+            ranks = ['King', 'Scum']
+        if len(game.players) == 3:
+            ranks = ['King', 'Citizen', 'Scum']
+        if len(game.players) == 4:
+            classes = ['King', 'Vice-king', 'Vice-scum', 'Scum']
+        if len(game.players) == 5:
+            ranks = ['King', 'Vice-king', 'Citizen', 'Vice-scum', 'Scum']
+        if len(game.players) > 5:
+            citizens = ['{c} Citizen' for c in ['First', 'Second', 'Third', 'Fourth']]
+            x = len(game.players)
+            ranks = ['King', 'Vice-king'] + citizens[:x - 4] + ['Vice-scum', 'Scum']
+
+        remainder = self.card_counts.copy()
+        ranked = []
+        for player_id, card in game.cards_played_per_player():
+            remainder[player_id] -= 1
+            if remainder[player_id] == 0:
+                ranked.append(player_id)
+
+        total_score = [(pid, rank) for pid, rank in zip(ranked, ranks)]
+
+        game.append_trickset_summary(total_score)
 
     async def check_legal_play(self, game, play):
         if play.is_pass and len(play.cards) > 0:
