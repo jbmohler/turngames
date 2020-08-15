@@ -24,9 +24,8 @@ class GamePlayer:
         self.name = name
 
     def as_dict(self):
-        return {
-                "id": self.id,
-                "name": self.name}
+        return {"id": self.id, "name": self.name}
+
 
 class GameTurn:
     pass

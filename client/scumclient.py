@@ -44,7 +44,7 @@ class ScumClient:
         # this is essentially the greedy algorithm
 
         print(prompt)
-        await asyncio.sleep(.25)
+        await asyncio.sleep(0.25)
 
         trick = prompt["trick"]
         if len(trick) > 0:

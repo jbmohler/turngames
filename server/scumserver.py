@@ -77,8 +77,13 @@ class Server:
     async def run_state_play(self, game):
         # something about player order
 
-        playcount = collections.Counter(player_id for player_id, _ in game.cards_played_per_player())
-        remaining = {pid: dealt - playcount.get(pid, 0) for pid, dealt in self.card_counts.items()}
+        playcount = collections.Counter(
+            player_id for player_id, _ in game.cards_played_per_player()
+        )
+        remaining = {
+            pid: dealt - playcount.get(pid, 0)
+            for pid, dealt in self.card_counts.items()
+        }
 
         default_player = None
         player_id = None
@@ -91,7 +96,9 @@ class Server:
 
             for next_player in game.player_queue(last):
                 if next_player == first:
-                    default_player = [gtp for gtp in reversed(current.played) if not gtp.is_pass][0].player_id
+                    default_player = [
+                        gtp for gtp in reversed(current.played) if not gtp.is_pass
+                    ][0].player_id
                     game.trick_history.append(current)
                     print_trick(game, current)
                     game.live_trick = None
@@ -126,17 +133,17 @@ class Server:
 
     def summarize_trickset(self, game):
         if len(game.players) == 2:
-            ranks = ['King', 'Scum']
+            ranks = ["King", "Scum"]
         if len(game.players) == 3:
-            ranks = ['King', 'Citizen', 'Scum']
+            ranks = ["King", "Citizen", "Scum"]
         if len(game.players) == 4:
-            classes = ['King', 'Vice-king', 'Vice-scum', 'Scum']
+            classes = ["King", "Vice-king", "Vice-scum", "Scum"]
         if len(game.players) == 5:
-            ranks = ['King', 'Vice-king', 'Citizen', 'Vice-scum', 'Scum']
+            ranks = ["King", "Vice-king", "Citizen", "Vice-scum", "Scum"]
         if len(game.players) > 5:
-            citizens = ['{c} Citizen' for c in ['First', 'Second', 'Third', 'Fourth']]
+            citizens = ["{c} Citizen" for c in ["First", "Second", "Third", "Fourth"]]
             x = len(game.players)
-            ranks = ['King', 'Vice-king'] + citizens[:x - 4] + ['Vice-scum', 'Scum']
+            ranks = ["King", "Vice-king"] + citizens[: x - 4] + ["Vice-scum", "Scum"]
 
         remainder = self.card_counts.copy()
         ranked = []
