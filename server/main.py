@@ -68,6 +68,8 @@ class GameStruct:
         # TODO:  make this dynamic & elegant
         if server == "scum":
             import scumserver as module
+        elif server == "udr":
+            import udrserver as module
 
         self.srvplug = module.Server()
 
@@ -213,6 +215,18 @@ class GameStruct:
         else:
             await self.prompt_player(player.id, retry_msg="illegal play")
 
+    async def bid_response(self, bider, data):
+        candidate = GameTrick.GameTrickPlay(
+            bider.id, data.get("cards", []), data.get("is_pass", False)
+        )
+
+        if await self.srvplug.check_legal_bid(self, candidate):
+            self.live_trick.add(candidate)
+            self.bump_state()
+            await self.srvplug.run_state_bid(self)
+        else:
+            await self.prompt_bider(bider.id, retry_msg="illegal bid")
+
     def player_queue(self, after_player_id, include=False):
         if include:
             yield after_player_id
@@ -297,5 +311,8 @@ async def handle_game_ws(websocket: WebSocket, gs: GameStruct, is_creator: bool)
 
         if data["type"] == "play_response":
             await gs.play_response(player, data)
+
+        if data["type"] == "bid_response":
+            await gs.bid_response(bider, data)
 
         # await websocket.send_text(f"Message text was: {data}")

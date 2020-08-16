@@ -52,6 +52,14 @@ async def chat_server(session, game, server):
                 if data["type"] == "deal":
                     await game.myclient.accept_deal(data)
 
+                if data["type"] == "bid":
+                    response = await game.myclient.make_bid(data)
+
+                    content = {"type": "bid_response"}
+                    content.update(response)
+
+                    await ws.send_str(json.dumps(content))
+
                 if data["type"] == "play":
                     response = await game.myclient.make_play(data)
 
@@ -106,7 +114,7 @@ if __name__ == "__main__":
         import scumclient
 
         gclient = scumclient.ScumClient()
-    elif args.game == "scum":
+    elif args.game == "udr":
         import udrclient
 
         gclient = udrclient.UpDownRivClient()
