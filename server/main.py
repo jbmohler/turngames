@@ -159,7 +159,7 @@ class GameStruct:
         if self.state[0] == "startup":
             state = {}
             state["state"] = self.state
-            state["players"] = [x.name for x in self.players]
+            state["players"] = [x.as_dict() for x in self.players]
             return state
         elif self.state[0] == "deal":
             state = {}

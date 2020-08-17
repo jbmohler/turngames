@@ -43,11 +43,8 @@ async def chat_server(session, game, server):
 
                 if data["type"] == "state_update":
                     state = data["state"]
-                    if game.is_creator and state["state"][0] == "startup":
-                        # TODO abstract start state
-                        if len(state["players"]) == 4:
-                            content = {"type": "player_lock"}
-                            await ws.send_str(json.dumps(content))
+                    if state["state"][0] == "startup":
+                        await game.myclient.monitor_state_startup(game, state, ws)
 
                 if data["type"] == "deal":
                     await game.myclient.accept_deal(data)
@@ -96,6 +93,17 @@ async def start_game(server, game):
         await chat_server(session, game, server)
 
 
+async def monitor_state_startup_ai(self, game, state, ws):
+    if not game.is_creator:
+        return
+
+    names = [p["name"] for p in state["players"]]
+
+    if set(names) == set(self.group).union([game.get_name()]):
+        content = {"type": "player_lock"}
+        await ws.send_str(json.dumps(content))
+
+
 if __name__ == "__main__":
     server = "http://localhost:8000"
 
@@ -103,6 +111,10 @@ if __name__ == "__main__":
     parser.add_argument("--player", help="player name")
     parser.add_argument(
         "--host", default=False, action="store_true", help="is game host"
+    )
+    parser.add_argument(
+        "--group",
+        help="comma delimited list of opponents after which AI host will start game",
     )
     parser.add_argument("--game", choices=("scum", "udr"), help="game choice")
 
@@ -120,6 +132,10 @@ if __name__ == "__main__":
         gclient = udrclient.UpDownRivClient()
     else:
         raise RuntimeError("unknown game choice")
+
+    gclient.__class__.monitor_state_startup = monitor_state_startup_ai
+    if args.host:
+        gclient.group = args.group.split(",")
 
     game = ClientGame(args.player, args.host, gclient)
     asyncio.get_event_loop().run_until_complete(start_game(server, game))
