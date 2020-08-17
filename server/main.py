@@ -215,17 +215,16 @@ class GameStruct:
         else:
             await self.prompt_player(player.id, retry_msg="illegal play")
 
-    async def bid_response(self, bider, data):
-        candidate = GameTrick.GameTrickPlay(
-            bider.id, data.get("cards", []), data.get("is_pass", False)
-        )
+    async def prompt_bidder(self, player_id, ctx):
+        pmap = {p.id: p for p in self.players}
+        obj = {"type": "bid", "context": ctx}
+        await pmap[player_id].websocket.send_json(obj)
 
-        if await self.srvplug.check_legal_bid(self, candidate):
-            self.live_trick.add(candidate)
-            self.bump_state()
-            await self.srvplug.run_state_bid(self)
+    async def bid_response(self, player, data):
+        if await self.srvplug.check_legal_bid(self, player, data):
+            await self.srvplug.place_bid(self, player, data)
         else:
-            await self.prompt_bider(bider.id, retry_msg="illegal bid")
+            await self.prompt_bidder(player.id, retry_msg="illegal bid")
 
     def player_queue(self, after_player_id, include=False):
         if include:
@@ -313,6 +312,6 @@ async def handle_game_ws(websocket: WebSocket, gs: GameStruct, is_creator: bool)
             await gs.play_response(player, data)
 
         if data["type"] == "bid_response":
-            await gs.bid_response(bider, data)
+            await gs.bid_response(player, data)
 
         # await websocket.send_text(f"Message text was: {data}")

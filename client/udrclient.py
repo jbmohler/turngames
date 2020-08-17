@@ -1,4 +1,5 @@
 import itertools
+import random
 import asyncio
 
 
@@ -30,6 +31,8 @@ class UpDownRivClient:
         self.cards = None
         self.cards_played = []
 
+        self.trump = None
+
     def state_update(self, newstate):
         # TODO is this necessary
         if newstate.next_player == "me":
@@ -55,39 +58,54 @@ class UpDownRivClient:
         high = [c for c in self.cards if card_denomination(c) > 12]
         return {"bid": len(high)}
 
+    def card_suit_ex(self, c):
+        x = card_suit(c)
+        if x == "z":
+            x = self.trump
+        return x
+
     async def make_play(self, prompt):
-        # this is essentially the greedy algorithm
+        # So far, this algorithm plays generally greedily - If below
+        # bid amount and can take the hand, it does so then it tries
+        # best not to.  TODO -- be smarter with trump.
 
         print(prompt)
         await asyncio.sleep(0.25)
 
         trick = prompt["trick"]
         if len(trick) > 0:
-            last = [gtp for gtp in reversed(trick) if not gtp["is_pass"]][0]
-            topcards = last["cards"]
-            high_denom = card_denomination(topcards[0])
+            on_table = [gtp["cards"][0] for gtp in trick]
+            led = self.card_suit_ex(on_table[0])
 
-            # bucket cards (they are sorted)
-            for denom, _cards in itertools.groupby(self.cards, key=card_denomination):
-                cards = list(_cards)
-                if denom > high_denom and len(cards) >= len(topcards):
-                    result = {"cards": cards[: len(topcards)]}
-                    break
+            matching = [c for c in self.cards if self.card_suit_ex(c) == led]
+            trump_cards = [c for c in self.cards if self.card_suit_ex(c) == self.trump]
+
+            # TODO: count hands taken
+            short_bid = True
+
+            if len(matching) > 0:
+                # must match suit called
+                if short_bid:
+                    card = matching[-1]
+                else:
+                    card = matching[0]
+            elif len(trump_cards) > 0 and short_bid:
+                # play trump
+                card = random.choice(trump_cards)
             else:
-                result = {"is_pass": True}
+                # play random
+                card = random.choice(self.cards)
         else:
-            # bucket cards (they are sorted)
-            for denom, _cards in itertools.groupby(self.cards, key=card_denomination):
-                cards = list(_cards)
-                break
+            # lead random
+            card = random.choice(self.cards)
 
-            result = {"cards": cards}
+        result = {"cards": [card]}
 
-        if not result.get("is_pass", False):
-            # update accounting
-            # TODO -- what if the server returns illegal move? we've taken the
-            # cards out of play ... although how would we even respond to that.
-            self.cards_played += result["cards"]
-            for c in result["cards"]:
-                self.cards.remove(c)
+        # update accounting
+        # TODO -- what if the server returns illegal move? we've taken the
+        # cards out of play ... although how would we even respond to that.
+        self.cards_played += result["cards"]
+        for c in result["cards"]:
+            self.cards.remove(c)
+
         return result

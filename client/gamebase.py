@@ -45,7 +45,7 @@ async def chat_server(session, game, server):
                     state = data["state"]
                     if game.is_creator and state["state"][0] == "startup":
                         # TODO abstract start state
-                        if len(state["players"]) == 3:
+                        if len(state["players"]) == 4:
                             content = {"type": "player_lock"}
                             await ws.send_str(json.dumps(content))
 

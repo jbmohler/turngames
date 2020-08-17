@@ -40,11 +40,36 @@ def card_sort(c):
 def print_trick(game, current):
     pmap = {p.id: p for p in game.players}
     print(f"Trick #{len(game.trick_history)}")
+
+    trump = game.srvplug.trump
     for index, play in enumerate(current.played):
+        card = play.cards[0]
         if index == 0:
-            led = card_suit(play.cards[0])
-        print(f"\t{play.cards} ({pmap[play.player_id].name})")
-    print(f"{pmap[takes.player_id].name} takes the trick")
+            takes = play.player_id
+            taking = card
+            prime_suit = game.srvplug.card_suit_ex(card)
+        elif game.srvplug.card_suit_ex(card) == trump:
+            takes = play.player_id
+            taking = card
+            prime_suit = trump
+        elif game.srvplug.card_suit_ex(card) == prime_suit and card_denomination(
+            card
+        ) > card_denomination(taking):
+            takes = play.player_id
+            taking = card
+
+        print(f"\t{card} ({pmap[play.player_id].name})")
+    print(f"{pmap[takes].name} takes the trick")
+    return takes
+
+
+def print_bids(game, bids):
+    pmap = {p.id: p for p in game.players}
+    # TODO: abstract n
+    n = 7
+    print(f"Bid on {n} cards")
+    for player in game.players:
+        print(f"\t{player.name}: {bids[player.id]}")
 
 
 class Server:
@@ -86,38 +111,39 @@ class Server:
         self.card_counts = todeal.copy()
 
         # TODO:  this will be async with an await
-        deals = await game.dealer.deal_cards(todeal, CARDS)
+        deals = await game.dealer.deal_cards(todeal, cardset)
 
-        self.trump = card_suit(deals["trump"])
+        self.trump_representative = deals.pop("trump")
+        self.trump = card_suit(self.trump_representative)
 
         await game.distribute_deals(deals)
 
     async def run_state_bid(self, game):
         for player in game.players:
-            obj = {"type": "bid"}
-            await player.websocket.send_json(obj)
+            ctx = None
+            await game.prompt_bidder(player.id, ctx)
 
-        # TODO: figure out when to call this
-        # await game.finalize_bid()
+        self.bids = {player.id: None for player in game.players}
 
-    async def check_legal_bid(self, game, bid):
-        asdf
+    async def check_legal_bid(self, game, player, data):
+        thebid = int(data["bid"])
 
-    async def place_bid(self, game, bid):
-        asdf
+        if not 0 <= thebid <= self.card_counts[player.id]:
+            return False
+        return True
+
+    async def place_bid(self, game, player, data):
+        self.bids[player.id] = int(data["bid"])
+
+        remaining = {pid for pid, bid in self.bids.items() if bid is None}
+
+        if 0 == len(remaining):
+            print_bids(game, self.bids)
+            await game.finalize_bid()
 
     async def run_state_play(self, game):
         # something about player order
 
-        playcount = collections.Counter(
-            player_id for player_id, _ in game.cards_played_per_player()
-        )
-        remaining = {
-            pid: dealt - playcount.get(pid, 0)
-            for pid, dealt in self.card_counts.items()
-        }
-
-        default_player = None
         player_id = None
 
         if game.live_trick:
@@ -128,40 +154,36 @@ class Server:
 
             for next_player in game.player_queue(last):
                 if next_player == first:
-                    default_player = [
-                        gtp for gtp in reversed(current.played) if not gtp.is_pass
-                    ][0].player_id
+                    player_id = print_trick(game, current)
                     game.trick_history.append(current)
-                    print_trick(game, current)
                     game.live_trick = None
                     break
-                elif remaining[next_player] > 0:
+                else:
                     player_id = next_player
                     break
         else:
-            default_player = game.players[0].id
+            player_id = game.players[0].id
 
-        if game.live_trick == None:
-            for player in game.players:
-                if remaining[player.id] < 3:
-                    print(f"{player.name}:  {remaining[player.id]}")
-
-            rplayers = [p for p in game.players if remaining[p.id] > 0]
-
-            if len(rplayers):
-                for pid in game.player_queue(default_player, include=True):
-                    if remaining[pid] > 0:
-                        player_id = pid
-                        break
-
-                game.create_live_trick()
+        tricks = len(game.trick_history)
+        # TODO trick count
+        if tricks == 7:
+            player_id = None
 
         if player_id:
+            if game.live_trick == None:
+                game.create_live_trick()
+
             await game.prompt_player(player_id)
         else:
             self.summarize_trickset(game)
             game.move_state("review")
             await game.announce_trickset_complete()
+
+    def card_suit_ex(self, c):
+        x = card_suit(c)
+        if x == "z":
+            x = self.trump
+        return x
 
     def summarize_trickset(self, game):
         # total_score = # ...
