@@ -51,8 +51,10 @@ class UpDownRivClient:
     async def show_summary(self, tset):
         pmap = {p["id"]: p for p in tset["players"]}
 
-        for pid, rank in tset["summary"]:
-            print(f"{pmap[pid]['name']}: {rank}")
+        for player_results in tset["summary"]:
+            pid = player_results["player_id"]
+            score = player_results["score"]
+            print(f"{pmap[pid]['name']}: {score}")
 
     async def make_bid(self, prompt):
         high = [c for c in self.cards if card_denomination(c) > 12]

@@ -39,28 +39,14 @@ def card_sort(c):
 
 def print_trick(game, current):
     pmap = {p.id: p for p in game.players}
-    print(f"Trick #{len(game.trick_history)}")
+    print(f"Trick #{len(game.trick_history)+1}")
 
-    trump = game.srvplug.trump
+    results = game.srvplug.assign_trick(game, current)
     for index, play in enumerate(current.played):
-        card = play.cards[0]
-        if index == 0:
-            takes = play.player_id
-            taking = card
-            prime_suit = game.srvplug.card_suit_ex(card)
-        elif game.srvplug.card_suit_ex(card) == trump:
-            takes = play.player_id
-            taking = card
-            prime_suit = trump
-        elif game.srvplug.card_suit_ex(card) == prime_suit and card_denomination(
-            card
-        ) > card_denomination(taking):
-            takes = play.player_id
-            taking = card
-
-        print(f"\t{card} ({pmap[play.player_id].name})")
-    print(f"{pmap[takes].name} takes the trick")
-    return takes
+        print(f"\t{play.cards[0]} ({pmap[play.player_id].name})")
+    print(
+        f"{pmap[results['win_player']].name} takes the trick with {results['win_card']}"
+    )
 
 
 def print_bids(game, bids):
@@ -154,7 +140,10 @@ class Server:
 
             for next_player in game.player_queue(last):
                 if next_player == first:
-                    player_id = print_trick(game, current)
+                    trickwin = self.assign_trick(game, current)
+                    player_id = trickwin["win_player"]
+                    print_trick(game, current)
+
                     game.trick_history.append(current)
                     game.live_trick = None
                     break
@@ -185,12 +174,46 @@ class Server:
             x = self.trump
         return x
 
+    def assign_trick(self, game, current):
+        cden = card_denomination
+        trump = self.trump
+
+        for index, play in enumerate(current.played):
+            card = play.cards[0]
+            if index == 0:
+                takes = play.player_id
+                taking = card
+                prime_suit = self.card_suit_ex(card)
+            elif self.card_suit_ex(card) == trump:
+                takes = play.player_id
+                taking = card
+                prime_suit = trump
+            elif self.card_suit_ex(card) == prime_suit and cden(card) > cden(taking):
+                takes = play.player_id
+                taking = card
+        return {"win_player": takes, "win_card": taking}
+
     def summarize_trickset(self, game):
-        # total_score = # ...
+        total_score = []
 
-        # game.append_trickset_summary(total_score)
+        taken = collections.defaultdict(lambda: 0)
+        for trick in game.trick_history:
+            trickwin = self.assign_trick(game, trick)
+            taken[trickwin["win_player"]] += 1
 
-        pass
+        for player in game.players:
+            tricks = taken[player.id]
+            bids = self.bids[player.id]
+            total_score.append(
+                {
+                    "player_id": player.id,
+                    "bid": bids,
+                    "tricks": tricks,
+                    "score": tricks + (10 if tricks == bids else 0),
+                }
+            )
+
+        game.append_trickset_summary(total_score)
 
     async def check_legal_play(self, game, play):
         if play.is_pass:
