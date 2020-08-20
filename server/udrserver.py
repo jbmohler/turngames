@@ -37,36 +37,19 @@ def card_sort(c):
 ############################
 
 
-def print_trick(game, current):
-    pmap = {p.id: p for p in game.players}
-    print(f"Trick #{len(game.trick_history)+1}")
-
-    results = game.srvplug.assign_trick(game, current)
-    for index, play in enumerate(current.played):
-        print(f"\t{play.cards[0]} ({pmap[play.player_id].name})")
-    print(
-        f"{pmap[results['win_player']].name} takes the trick with {results['win_card']}"
-    )
-
-
-def print_bids(game, bids):
-    pmap = {p.id: p for p in game.players}
-    # TODO: abstract n
-    n = 7
-    print(f"Bid on {n} cards")
-    for player in game.players:
-        print(f"\t{player.name}: {bids[player.id]}")
-
-
 class Server:
     def __init__(self):
         self.card_counts = {}
         self.trump = None
 
+        # 1 .. 15
+        self.trickset_index = 0
+
         self.bids = {}
 
     async def update_state(self, game):
         if game.state[0] == "deal":
+            self.trickset_index += 1
             await self.run_state_deal(game)
         elif game.state[0] == "bid":
             await self.run_state_bid(game)
@@ -74,6 +57,14 @@ class Server:
             await self.run_state_play(game)
         elif game.state[0] == "review":
             pass
+
+    @property
+    def deal_type(self):
+        return "normal"
+
+    @property
+    def deal_count(self):
+        return max(1, abs(self.trickset_index - 8))
 
     async def run_state_deal(self, game):
         global CARDS, REDUCED_CARDS
@@ -90,7 +81,7 @@ class Server:
 
         game.dealer = dealer.Dealer()
 
-        cardsper = 7
+        cardsper = self.deal_count
 
         todeal = {p.id: cardsper for p in game.players}
         todeal["trump"] = 1
@@ -124,7 +115,7 @@ class Server:
         remaining = {pid for pid, bid in self.bids.items() if bid is None}
 
         if 0 == len(remaining):
-            print_bids(game, self.bids)
+            self.print_bids(game, self.bids)
             await game.finalize_bid()
 
     async def run_state_play(self, game):
@@ -142,7 +133,7 @@ class Server:
                 if next_player == first:
                     trickwin = self.assign_trick(game, current)
                     player_id = trickwin["win_player"]
-                    print_trick(game, current)
+                    self.print_trick(game, current)
 
                     game.trick_history.append(current)
                     game.live_trick = None
@@ -154,8 +145,7 @@ class Server:
             player_id = game.players[0].id
 
         tricks = len(game.trick_history)
-        # TODO trick count
-        if tricks == 7:
+        if tricks == self.deal_count:
             player_id = None
 
         if player_id:
@@ -167,6 +157,23 @@ class Server:
             self.summarize_trickset(game)
             game.move_state("review")
             await game.announce_trickset_complete()
+
+    def print_trick(self, game, current):
+        pmap = {p.id: p for p in game.players}
+        print(f"Trick #{len(game.trick_history)+1}")
+
+        results = self.assign_trick(game, current)
+        for index, play in enumerate(current.played):
+            print(f"\t{play.cards[0]} ({pmap[play.player_id].name})")
+        print(
+            f"{pmap[results['win_player']].name} takes the trick with {results['win_card']}"
+        )
+
+    def print_bids(self, game, bids):
+        n = self.deal_count
+        print(f"Bid on {n} cards")
+        for player in game.players:
+            print(f"\t{player.name}: {bids[player.id]}")
 
     def card_suit_ex(self, c):
         x = card_suit(c)

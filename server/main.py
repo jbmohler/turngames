@@ -114,7 +114,6 @@ class GameStruct:
         self.clear_trickset()
 
         # TODO:  re-order players by prior trickset
-
         self.move_state("deal")
 
     async def distribute_deals(self, deals):
