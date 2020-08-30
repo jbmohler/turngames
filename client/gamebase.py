@@ -68,10 +68,16 @@ async def chat_server(session, game, server):
                 if data["type"] == "review_trickset":
                     await game.myclient.show_summary(data["state"])
                     if game.is_creator:
-                        print("going to play again")
-                        await asyncio.sleep(2)
-                        content = {"type": "new_trickset"}
-                        await ws.send_str(json.dumps(content))
+                        ntd = data.get("next_trick_disposition", "continue")
+                        if ntd == "complete":
+                            again = "n"
+                        elif ntd == "open-ended":
+                            again = input("play another trickset? [yn]")
+                        else:
+                            again = "y"
+                        if again.lower()[0] == "y":
+                            content = {"type": "new_trickset"}
+                            await ws.send_str(json.dumps(content))
 
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break

@@ -1,4 +1,5 @@
 import collections
+import asyncio
 import dealer
 
 SUITS = ["Red", "Yellow", "Green", "Black"]
@@ -157,6 +158,10 @@ class Server:
             self.summarize_trickset(game)
             game.move_state("review")
             await game.announce_trickset_complete()
+            if self.trickset_index == 15:
+                # up-down-riv is done after 15 tricksets
+                await asyncio.sleep(3)
+                game.move_state("lobby")
 
     def print_trick(self, game, current):
         pmap = {p.id: p for p in game.players}
@@ -220,7 +225,8 @@ class Server:
                 }
             )
 
-        game.append_trickset_summary(total_score)
+        ntd = "continue" if self.trickset_index < 15 else "complete"
+        game.append_trickset_summary(total_score, next_trick_disposition=ntd)
 
     async def check_legal_play(self, game, play):
         if play.is_pass:

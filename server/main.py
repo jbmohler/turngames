@@ -74,6 +74,7 @@ class GameStruct:
         self.srvplug = module.Server()
 
         self.trickset_summary = []
+        self.review_extras = {}
 
         self.clear_trickset()
 
@@ -128,6 +129,7 @@ class GameStruct:
         state = self.get_state()
         for player in self.players:
             obj = {"type": "review_trickset", "state": state}
+            obj.update(self.review_extras)
             await player.websocket.send_json(obj)
 
     async def finalize_bid(self):
@@ -151,7 +153,8 @@ class GameStruct:
     def create_live_trick(self):
         self.live_trick = GameTrick()
 
-    def append_trickset_summary(self, data):
+    def append_trickset_summary(self, data, **kwargs):
+        self.review_extras.update(kwargs)
         self.trickset_summary.append(data)
 
     def get_state(self):
@@ -180,6 +183,10 @@ class GameStruct:
             state["state"] = self.state
             state["players"] = [x.as_dict() for x in self.players]
             state["summary"] = self.trickset_summary[-1]
+            return state
+        elif self.state[0] == "lobby":
+            state = {}
+            state["state"] = self.state
             return state
         else:
             raise NotImplementedError(f"no state implementation for {self.state[0]}")
